@@ -2,9 +2,15 @@
 CREATE TABLE "products" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
-    "description" TEXT,
-    "price" DECIMAL(10,2) NOT NULL,
+    "size" TEXT,
+    "color" TEXT,
     "stock" INTEGER NOT NULL,
+    "price50" DOUBLE PRECISION,
+    "price100" DOUBLE PRECISION,
+    "price200" DOUBLE PRECISION,
+    "available" BOOLEAN NOT NULL DEFAULT true,
+    "category" TEXT,
+    "description" TEXT,
 
     CONSTRAINT "products_pkey" PRIMARY KEY ("id")
 );

@@ -5,8 +5,6 @@ dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
-// 1. Definición de las Herramientas usando SchemaType
-// Tipamos esto explícitamente como Tool[] para que TypeScript no se queje
 const toolsDefinition: Tool[] = [
   {
     functionDeclarations: [
@@ -72,10 +70,15 @@ export const startChat = () => {
         role: "user",
         parts: [
           {
-            text: "Hola, eres el vendedor de Laburen.com. Tu objetivo es vender ropa. Sé amable y breve.",
+            text: `Eres un asistente de ventas de una tienda MAYORISTA exclusiva. 
+            Reglas importantes:
+            1. NO vendemos por unidad. La compra mínima es de 50 unidades por producto.
+            2. Tenemos escalas de precios para 50, 100 y 200 unidades.
+            3. Si el usuario pide 1 remera, explícale amablemente que solo vendemos al por mayor (mínimo 50).`,
           },
         ],
       },
+      // ...
       {
         role: "model",
         parts: [

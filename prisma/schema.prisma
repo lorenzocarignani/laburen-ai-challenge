@@ -4,17 +4,22 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // url      = env("DATABASE_URL")
   
 }
 model Product {
   id          Int         @id @default(autoincrement())
   name        String
-  description String?
-  price       Decimal     @db.Decimal(10, 2)
-  stock       Int
   size        String?
   color       String?
+  stock       Int
+  price50     Float?
+  price100    Float?
+  price200    Float?
+  available   Boolean     @default(true)
   category    String?
+  description String?
+
   cartItems   CartItem[]
 
   @@map("products")

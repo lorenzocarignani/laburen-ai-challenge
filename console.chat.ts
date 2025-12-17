@@ -1,5 +1,5 @@
 import { startChat } from "./src/services/ai.service.js";
-import { runTool } from "./src/services/tool.runner.js";
+import { runTool } from "./src/services/tools.runner.js";
 
 import readline from "readline";
 
@@ -36,8 +36,6 @@ const askQuestion = () => {
         // 3. Ejecutamos la función real (buscamos en DB)
         const toolResult = await runTool(functionName, args);
 
-        // 4. Le devolvemos el resultado a Gemini para que genere la respuesta final en lenguaje natural
-        // Nota: En la versión actual del SDK, se envía el resultado como un nuevo mensaje de tipo "function_response"
         const result2 = await chat.sendMessage([
           {
             functionResponse: {

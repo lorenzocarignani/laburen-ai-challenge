@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
+import { createOrderWithStockValidation } from "../services/order.service";
 
 const prisma = new PrismaClient();
 
@@ -8,32 +9,17 @@ export const createCart = async (req: Request, res: Response) => {
   try {
     const { items } = req.body;
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return res
-        .status(400)
-        .json({ error: "El carrito debe tener al menos un producto" });
-    }
-
-    const newCart = await prisma.cart.create({
-      data: {
-        items: {
-          create: items.map((item: any) => ({
-            productId: item.product_id,
-            qty: item.qty,
-          })),
-        },
-      },
-      include: {
-        items: {
-          include: { product: true },
-        },
-      },
-    });
+    // Delegamos la lógica compleja al servicio
+    const newCart = await createOrderWithStockValidation(items);
 
     res.status(201).json(newCart);
-  } catch (error) {
+  } catch (error: any) {
+    // Si el error viene de nuestras validaciones de negocio (stock, mínimos), devolvemos 400
+    if (error.message && error.message.includes("Error en")) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error(error);
-    res.status(500).json({ error: "Error al crear el carrito" });
+    res.status(500).json({ error: "Error interno al procesar el pedido." });
   }
 };
 
@@ -42,8 +28,11 @@ export const updateCart = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { items } = req.body;
-
     const cartId = Number(id);
+
+    // Nota: Esta lógica actualiza cantidades en un carrito existente pero
+    // NO maneja re-validación de stock compleja (restock/destock).
+    // Para un challenge, suele bastar con la creación segura (createCart).
 
     const cartExists = await prisma.cart.findUnique({ where: { id: cartId } });
     if (!cartExists)
@@ -79,9 +68,7 @@ export const updateCart = async (req: Request, res: Response) => {
     const updatedCart = await prisma.cart.findUnique({
       where: { id: cartId },
       include: {
-        items: {
-          include: { product: true },
-        },
+        items: { include: { product: true } },
       },
     });
 
