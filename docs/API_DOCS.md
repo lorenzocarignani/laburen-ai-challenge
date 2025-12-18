@@ -66,36 +66,84 @@ sequenceDiagram
 
 ## 🔗 Endpoints API
 
-### 1. Recepción de Mensajes (Webhook)
+### 1. Comunicación (WhatsApp Webhook)
 
-Punto de entrada principal para eventos de Twilio.
+#### `POST /webhook`
 
-- **URL:** `/webhook`
-- **Método:** `POST`
-- **Content-Type:** `application/x-www-form-urlencoded`
+Punto de entrada principal para eventos de Twilio. El orquestador recibe el mensaje aquí.
 
-**Parámetros del Body (Twilio Standard):**
-
-| Parámetro     | Tipo   | Descripción                                   |
-| :------------ | :----- | :-------------------------------------------- |
-| `From`        | String | Número del usuario (ej: `whatsapp:+54911...`) |
-| `Body`        | String | El texto del mensaje enviado por el usuario.  |
-| `ProfileName` | String | Nombre público del perfil de WhatsApp.        |
-
-**Respuesta:**
-
-- **Código:** `200 OK`
-- **Body:** Texto plano (vacío). La respuesta al usuario se envía de forma asíncrona mediante la API de Twilio para evitar timeouts.
-
-### 2. Health Check
-
-Endpoint para monitoreo de uptime (Ping de Render para evitar "Cold Starts").
-
-- **URL:** `/health` (o `/`)
-- **Método:** `GET`
-- **Respuesta:** `200 OK` - "Server is running"
+- **Body:** Form-UrlEncoded (Standard Twilio: `From`, `Body`, etc.)
+- **Respuesta:** `200 OK` (Respuesta asíncrona vía Twilio Client).
 
 ---
+
+### 2. Gestión de Productos (Inventory)
+
+#### `GET /products`
+
+Busca productos en el catálogo.
+
+- **Query Params:**
+  - `q` (Opcional): Texto para buscar por nombre o descripción (búsqueda difusa/insensitive).
+- **Respuesta:** Array de objetos `Product`.
+
+#### `GET /products/:id`
+
+Obtiene el detalle de un producto específico.
+
+- **Respuesta:** Objeto `Product` o `404 Not Found`.
+
+#### `GET /products/names` (o la ruta que hayas definido para `getNames`)
+
+Obtiene un listado agrupado de nombres de productos disponibles (Stock >= 50). Útil para menús o autocompletado.
+
+- **Respuesta:**
+  ```json
+  [
+    { "name": "Camisa Formal", "_count": { "name": 5 } },
+    { "name": "Pantalón Chino", "_count": { "name": 3 } }
+  ]
+  ```
+
+---
+
+### 3. Gestión de Pedidos (Carts)
+
+#### `POST /carts`
+
+Crea un nuevo carrito de compras con validación estricta de stock (Transacción ACID).
+
+- **Body:**
+  ```json
+  {
+    "items": [
+      { "product_id": 1, "qty": 50 },
+      { "product_id": 4, "qty": 100 }
+    ]
+  }
+  ```
+- **Validaciones:**
+  - Verifica existencia del producto.
+  - Verifica `stock >= qty`.
+  - Verifica regla de negocio `qty >= 50` (Venta Mayorista).
+- **Respuesta:** `201 Created` con el objeto `Cart` completo.
+- **Errores:** `400 Bad Request` si falla validación de stock/negocio.
+
+#### `PATCH /carts/:id`
+
+Actualiza las cantidades de un carrito existente.
+
+- **Nota:** Este endpoint actualiza cantidades o elimina items (si `qty <= 0`), pero no ejecuta la validación compleja de "compra mínima inicial" nuevamente, asume corrección del lado del cliente/bot.
+- **Body:**
+  ```json
+  {
+    "items": [
+      { "product_id": 1, "qty": 60 },
+      { "product_id": 4, "qty": 0 }
+    ]
+  }
+  ```
+- **Respuesta:** `200 OK` con el objeto `Cart` actualizado.
 
 ## 🧠 Capacidades del Agente (AI Tools)
 
@@ -129,12 +177,24 @@ src/
 ├── app.ts                 # Configuración de Express y rutas
 ├── controllers/
 │   └── webhook.controller.ts  # Controlador del endpoint /webhook
+│   └── product.controller.ts  # Controlador que maneja los productos
+│   └── carts.controller.ts    # Controlador que maneja los carritos
 ├── services/
 │   ├── ai.service.ts      # Configuración de Gemini, System Prompt y Tools def
 │   ├── chat.service.ts    # ORQUESTADOR: Bucle de ejecución de herramientas
 │   ├── tools.runner.ts    # EJECUTOR: Lógica de negocio y consultas Prisma
 │   ├── order.service.ts   # Lógica transaccional de creación de pedidos
 │   └── twilio.service.ts  # Cliente para enviar mensajes a WhatsApp
-└── prisma/
-    └── schema.prisma      # Esquema de Base de Datos y Modelos
+├── prisma/
+│   └── products.xlsx          # Excel donde sacamos la data
+│   └── seed.ts                # Poblamos la bbdd extraemos de products
+│   └── schema.prisma          # Esquema de Base de Datos y Modelos
+├── routes/
+│   └── carts.routes.ts    # Maneja las rutas de carritos
+│   └── product.routes.ts  # Maneja las rutas de productos
+│   └── webhook.routes.ts  # Maneja las rutas de la webhook
+├── lib/
+│   └── sessions.ts        # Maneja las sesiones de los chats
+├── config/
+│   └── swagger.ts         # Configura swagger para la prueba de la API
 ```

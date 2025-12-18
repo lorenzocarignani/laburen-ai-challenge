@@ -6,7 +6,7 @@ import cartRoutes from "./routes/carts.routes";
 import webhookRoutes from "./routes/webhook.routes";
 
 import swaggerUi from "swagger-ui-express";
-import { swaggerSpec } from "./config/swagger"; // Asegurate de la ruta correcta
+import { swaggerSpec } from "./config/swagger";
 
 dotenv.config();
 
@@ -15,6 +15,10 @@ const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cors());
+
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
+});
 
 // --- SWAGGER UI ---
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));

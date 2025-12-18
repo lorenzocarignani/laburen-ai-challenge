@@ -89,7 +89,7 @@ El servidor iniciará en http://localhost:3000.
 
 ### 🧪 Cómo probar (Testing)\*\*
 
-- 1. Conectar Twilio:\*\*
+### 1. Conectar Twilio:
 
 - Si estás en local, usa Ngrok para exponer tu puerto 3000: ngrok http 3000.
 
@@ -99,7 +99,7 @@ El servidor iniciará en http://localhost:3000.
 
 - Pega la URL en "When a message comes in".
 
-- 2. Enviar mensaje:
+### 2. Enviar mensaje:
 
 - Abre Whatsapp y escribe el numero del Sandbox
 
@@ -110,8 +110,13 @@ El servidor iniciará en http://localhost:3000.
 ### 🌍 Despliegue (Deploy)
 
 - Este proyecto está configurado para desplegarse fácilmente en Render:
-- 1. Crear nuevo Web Service en Render.
-- 2. Conectar repositorio de GitHub.
-- 3. Build Command: npm install && npm run build
-- 4. Start Command: npm start
-- 5. Agregar las variables de entorno en el panel de Render.
+
+### 1. Crear nuevo Web Service en Render.
+
+### 2. Conectar repositorio de GitHub.
+
+### 3. Build Command: npm install && npm run build
+
+### 4. Start Command: npm start
+
+### 5. Agregar las variables de entorno en el panel de Render.
