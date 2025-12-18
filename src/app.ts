@@ -16,6 +16,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cors());
 
+// ✅ Health Check (Vital para Render)
 app.get("/health", (req, res) => {
   res.status(200).send("OK");
 });
@@ -24,13 +25,12 @@ app.get("/health", (req, res) => {
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 console.log("📄 Swagger disponible en http://localhost:3000/api-docs");
 
-// Rutas
 app.use("/products", productRoutes);
 app.use("/carts", cartRoutes);
 app.use("/webhook", webhookRoutes);
 
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
