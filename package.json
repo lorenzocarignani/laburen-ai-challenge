@@ -27,8 +27,8 @@
   },
   "scripts": {
     "dev": "nodemon src/app.ts",
-    "build": "tsc",
-    "start": "node dist/app.ts",
+    "build": "npx prisma generate && tsc",
+    "start": "node dist/app.js",
     "prisma:studio": "prisma studio"
   },
   "prisma": {

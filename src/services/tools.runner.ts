@@ -11,6 +11,7 @@ export const runTool = async (name: string, args: any) => {
       case "searchProducts":
         const queryRaw = (args.query || "").toString().trim();
 
+        // --- ESTRATEGIA 1: MENÚ (Categorías/Nombres) ---
         if (!queryRaw) {
           const names = await prisma.product.groupBy({
             by: ["name"],
@@ -29,7 +30,8 @@ export const runTool = async (name: string, args: any) => {
           return JSON.stringify({
             tipo_resultado: "MENU_CATEGORIAS",
             mensaje: "Estas son las líneas disponibles:",
-            opciones: names.map((c) => ({
+            // 👇 AQUÍ ESTABA EL ERROR: Agregamos ": any" a la variable "c"
+            opciones: names.map((c: any) => ({
               name: c.name,
               Variedad: `${c._count._all} modelos`,
             })),

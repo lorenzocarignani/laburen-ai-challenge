@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client"; // <--- 1. Importamos "Prisma"
 
 const prisma = new PrismaClient();
 
@@ -12,7 +12,8 @@ export const createOrderWithStockValidation = async (items: OrderItem[]) => {
     throw new Error("El pedido debe contener al menos un producto.");
   }
 
-  return await prisma.$transaction(async (tx) => {
+  // 2. Tipamos explícitamente "tx" como "Prisma.TransactionClient" 👇
+  return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const itemsToCreate = [];
 
     for (const item of items) {
@@ -24,28 +25,25 @@ export const createOrderWithStockValidation = async (items: OrderItem[]) => {
         throw new Error(`Producto ID ${item.product_id} no encontrado.`);
       }
 
-      // --- DEBUGGING EN TIEMPO REAL ---
       console.log(
         `🔎 Validando: ${product.name} | Piden: ${item.qty} | Hay: ${product.stock}`
       );
 
-      // 2. Validación A: Compra mínima mayorista (50u)
+      // Validación A: Compra mínima
       if (item.qty < 50) {
-        // AQUÍ ESTÁ EL CAMBIO: Le decimos a la IA cuánto pidió realmente
         throw new Error(
           `Error en '${product.name}': La compra mínima es de 50. La IA intentó pedir: ${item.qty} unidades.`
         );
       }
 
-      // 3. Validación B: Stock suficiente
+      // Validación B: Stock suficiente
       if (product.stock < item.qty) {
-        // AQUÍ ESTÁ EL CAMBIO: Le mostramos los números exactos
         throw new Error(
           `Error en '${product.name}': Pediste ${item.qty} pero solo tengo ${product.stock} en stock.`
         );
       }
 
-      // 4. Calcular nuevo stock
+      // Calcular nuevo stock
       const newStock = product.stock - item.qty;
       const isStillAvailable = newStock >= 50;
 
