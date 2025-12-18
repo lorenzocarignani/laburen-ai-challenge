@@ -56,7 +56,6 @@ const determineAvailability = (valColumna: any, stockReal: number): boolean => {
     "disponible",
   ];
 
-  // Si está en la lista positiva, es true. Si dice "No", "N", etc, será false.
   return positivos.includes(texto);
 };
 

@@ -23,6 +23,9 @@ model Product {
   cartItems   CartItem[]
 
   @@map("products")
+  @@index([name])     
+  @@index([category]) 
+  @@index([available]) 
 }
 
 model Cart {
@@ -32,6 +35,7 @@ model Cart {
   items      CartItem[]
 
   @@map("carts")
+  
 }
 
 model CartItem {

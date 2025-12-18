@@ -9,80 +9,120 @@ export const runTool = async (name: string, args: any) => {
   try {
     switch (name) {
       case "searchProducts":
-        const query = args.query || "";
+        const query = (args.query || "").trim();
 
-        // 1. Buscar productos disponibles (available: true) y con stock >= 50
+        // --- ESTRATEGIA 1: CATEGORÍAS (Sin cambios) ---
+        if (!query) {
+          const categories = await prisma.product.groupBy({
+            by: ["category"],
+            where: {
+              available: true,
+              stock: { gte: 50 },
+              category: { not: "" },
+            },
+            _count: { category: true },
+            orderBy: { category: "asc" },
+          });
+
+          if (categories.length === 0)
+            return "No hay stock mayorista disponible.";
+
+          const lista = categories
+            .map((c) => `• ${c.category} (${c._count.category} modelos)`)
+            .join("\n");
+
+          return `Categorías disponibles:\n${lista}\n\nPregunta al usuario cuál quiere ver.`;
+        }
+
+        // --- ESTRATEGIA 2: BÚSQUEDA DETALLADA ---
         const products = await prisma.product.findMany({
           where: {
             available: true,
             stock: { gte: 50 },
             OR: [
               { name: { contains: query, mode: "insensitive" } },
-              { description: { contains: query, mode: "insensitive" } },
               { category: { contains: query, mode: "insensitive" } },
             ],
           },
-          take: 8,
+          take: 20,
+          orderBy: { price50: "asc" },
+          // Traemos TODOS los precios necesarios
+          select: {
+            id: true,
+            name: true,
+            price50: true,
+            price100: true,
+            price200: true,
+            size: true,
+            stock: true,
+          },
         });
 
         if (products.length === 0) {
-          return "No se encontraron productos disponibles con stock suficiente para venta mayorista (mínimo 50u).";
+          return "No se encontraron productos con ese nombre/categoría (Min 50u).";
         }
 
-        // 2. Formatear respuesta inteligente: Solo mostrar escalas posibles según stock
-        const result = products.map((p) => {
-          let preciosStr = `Mínimo (50u): $${p.price50}`;
+        // --- AGRUPACIÓN ---
+        const groupedProducts: any = {};
 
-          if (p.price100 && p.stock >= 100) {
-            preciosStr += ` | Llevando 100u: $${p.price100}`;
+        for (const p of products) {
+          if (!groupedProducts[p.name]) {
+            groupedProducts[p.name] = {
+              id_ref: p.id,
+              nombre: p.name,
+              // Guardamos los PRECIOS REALES para pasárselos a la IA
+              p50: p.price50,
+              p100: p.price100,
+              p200: p.price200,
+              talles: [],
+            };
           }
-          if (p.price200 && p.stock >= 200) {
-            preciosStr += ` | Llevando 200u: $${p.price200}`;
-          }
+          if (p.size)
+            groupedProducts[p.name].talles.push(`${p.size} (${p.stock})`);
+        }
 
-          return {
-            id: p.id,
-            producto: p.name,
-            detalle: p.description,
-            oferta_precios_segun_stock: preciosStr, // La IA leerá esto
-            stock_real: p.stock,
-            talle: p.size,
-            color: p.color,
-          };
-        });
+        const result = Object.values(groupedProducts)
+          .slice(0, 5)
+          .map((p: any) => {
+            // Construimos un objeto de precios explícito
+            const tablaPrecios: any = {
+              Compra_Minima_50u: `$${p.p50}`,
+            };
+
+            if (p.p100) tablaPrecios["Llevando_100u"] = `$${p.p100}`;
+            if (p.p200) tablaPrecios["Llevando_200u"] = `$${p.p200}`;
+
+            return {
+              Modelo: p.nombre,
+              Lista_Precios: tablaPrecios,
+              Talles_Disponibles: p.talles.join(", ") || "Único",
+              ID_Referencia: p.id_ref,
+            };
+          });
 
         return JSON.stringify(result);
 
       case "createCart":
-        console.log("🛒 Procesando compra vía IA...");
-
-        if (!args.items || args.items.length === 0) {
-          return JSON.stringify({ error: "El pedido está vacío." });
-        }
+        console.log("🛒 Procesando compra...");
+        if (!args.items || args.items.length === 0)
+          return JSON.stringify({ error: "Vacío" });
 
         try {
-          // LLAMADA AL SERVICIO COMPARTIDO
           const cart = await createOrderWithStockValidation(args.items);
-
           return JSON.stringify({
             success: true,
             cart_id: cart.id,
-            mensaje:
-              "Pedido confirmado exitosamente. El stock ha sido reservado.",
+            mensaje: "Pedido Confirmado.",
           });
         } catch (error: any) {
-          // Capturamos errores de negocio (stock insuficiente, mínimo de compra)
-          return JSON.stringify({
-            success: false,
-            error: error.message,
-          });
+          return JSON.stringify({ success: false, error: error.message });
         }
 
       default:
-        return "Herramienta no reconocida.";
+        return "Herramienta desconocida.";
     }
   } catch (error) {
-    console.error("❌ Error general en tools:", error);
-    return "Error técnico procesando la solicitud.";
+    console.error("Error:", error);
+    return "Error técnico.";
   }
 };
