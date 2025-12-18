@@ -1,46 +1,21 @@
 import { Request, Response } from "express";
-import { sessions } from "../lib/sessions";
-import { startChat } from "../services/ai.service";
-import { runTool } from "../services/tools.runner";
-import { sendTwilioMessage } from "../services/twilio.service";
+import { processUserMessage } from "../services/chat.service";
+import { sendTwilioMessage } from "../services/twilio.service"; // Asumo que tienes esto
 
 export const receiveWebhook = async (req: Request, res: Response) => {
+  const message = req.body.Body;
+  const from = req.body.From; // El número de WhatsApp
+
   try {
-    const incomingMsg = req.body.Body;
-    const from = req.body.From;
+    // Usamos el orquestador inteligente
+    const botResponse = await processUserMessage(from, message);
 
-    console.log(`📩 Mensaje de ${from}: ${incomingMsg}`);
+    // Enviamos la respuesta a WhatsApp
+    await sendTwilioMessage(from, botResponse);
 
-    let chatSession = sessions.get(from);
-    if (!chatSession) {
-      chatSession = startChat();
-      sessions.set(from, chatSession);
-    }
-
-    const result = await chatSession.sendMessage(incomingMsg);
-    const response = result.response;
-    const call = response.functionCalls();
-
-    if (call && call.length > 0) {
-      const firstCall = call[0];
-      const toolResult = await runTool(firstCall.name, firstCall.args);
-
-      const finalResult = await chatSession.sendMessage([
-        {
-          functionResponse: {
-            name: firstCall.name,
-            response: { result: toolResult },
-          },
-        },
-      ]);
-
-      await sendTwilioMessage(from, finalResult.response.text());
-    } else {
-      await sendTwilioMessage(from, response.text());
-    }
-    res.status(200).send("<Response></Response>");
+    res.status(200).send("OK");
   } catch (error) {
-    console.error("Error en webhook:", error);
-    res.sendStatus(500);
+    console.error(error);
+    res.status(500).send("Error");
   }
 };

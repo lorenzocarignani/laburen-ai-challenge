@@ -9,29 +9,31 @@ export const runTool = async (name: string, args: any) => {
   try {
     switch (name) {
       case "searchProducts":
-        const query = (args.query || "").trim();
+        const queryRaw = (args.query || "").toString().trim();
 
-        // --- ESTRATEGIA 1: CATEGORÍAS (Sin cambios) ---
-        if (!query) {
-          const categories = await prisma.product.groupBy({
-            by: ["category"],
+        if (!queryRaw) {
+          const names = await prisma.product.groupBy({
+            by: ["name"],
             where: {
               available: true,
               stock: { gte: 50 },
-              category: { not: "" },
+              name: { not: "" },
             },
-            _count: { category: true },
-            orderBy: { category: "asc" },
+            _count: { _all: true },
+            orderBy: { name: "asc" },
           });
 
-          if (categories.length === 0)
-            return "No hay stock mayorista disponible.";
+          if (names.length === 0)
+            return JSON.stringify({ error: "Sin stock." });
 
-          const lista = categories
-            .map((c) => `• ${c.category} (${c._count.category} modelos)`)
-            .join("\n");
-
-          return `Categorías disponibles:\n${lista}\n\nPregunta al usuario cuál quiere ver.`;
+          return JSON.stringify({
+            tipo_resultado: "MENU_CATEGORIAS",
+            mensaje: "Estas son las líneas disponibles:",
+            opciones: names.map((c) => ({
+              name: c.name,
+              Variedad: `${c._count._all} modelos`,
+            })),
+          });
         }
 
         // --- ESTRATEGIA 2: BÚSQUEDA DETALLADA ---
@@ -40,67 +42,86 @@ export const runTool = async (name: string, args: any) => {
             available: true,
             stock: { gte: 50 },
             OR: [
-              { name: { contains: query, mode: "insensitive" } },
-              { category: { contains: query, mode: "insensitive" } },
+              { name: { contains: queryRaw, mode: "insensitive" } },
+              { category: { contains: queryRaw, mode: "insensitive" } },
             ],
           },
-          take: 20,
-          orderBy: { price50: "asc" },
-          // Traemos TODOS los precios necesarios
+          take: 60,
+          orderBy: { category: "asc" },
           select: {
             id: true,
             name: true,
+            category: true,
+            size: true,
+            color: true,
             price50: true,
             price100: true,
             price200: true,
-            size: true,
             stock: true,
           },
         });
 
         if (products.length === 0) {
-          return "No se encontraron productos con ese nombre/categoría (Min 50u).";
+          return JSON.stringify({
+            info: "No encontrado.",
+            sugerencia: "Intenta con otra categoría.",
+          });
         }
 
         // --- AGRUPACIÓN ---
-        const groupedProducts: any = {};
+        const grouped: any = {};
 
         for (const p of products) {
-          if (!groupedProducts[p.name]) {
-            groupedProducts[p.name] = {
+          const key = `${p.category} - ${p.name}`;
+
+          if (!grouped[key]) {
+            grouped[key] = {
               id_ref: p.id,
-              nombre: p.name,
-              // Guardamos los PRECIOS REALES para pasárselos a la IA
+              Producto: p.name,
+              Estilo: p.category,
+              // Precios Reales
               p50: p.price50,
               p100: p.price100,
               p200: p.price200,
-              talles: [],
+              Variantes: {},
             };
           }
-          if (p.size)
-            groupedProducts[p.name].talles.push(`${p.size} (${p.stock})`);
+
+          const colorName = p.color ? p.color.trim() : "Único";
+          if (!grouped[key].Variantes[colorName]) {
+            grouped[key].Variantes[colorName] = [];
+          }
+          if (p.size) {
+            grouped[key].Variantes[colorName].push(`${p.size} (${p.stock})`);
+          }
         }
 
-        const result = Object.values(groupedProducts)
+        const result = Object.values(grouped)
           .slice(0, 5)
-          .map((p: any) => {
-            // Construimos un objeto de precios explícito
-            const tablaPrecios: any = {
-              Compra_Minima_50u: `$${p.p50}`,
-            };
-
-            if (p.p100) tablaPrecios["Llevando_100u"] = `$${p.p100}`;
-            if (p.p200) tablaPrecios["Llevando_200u"] = `$${p.p200}`;
+          .map((item: any) => {
+            const detallesColor = Object.entries(item.Variantes)
+              .map(
+                ([color, talles]: [string, any]) =>
+                  `${color}: ${talles.join(", ")}`
+              )
+              .join(" | ");
 
             return {
-              Modelo: p.nombre,
-              Lista_Precios: tablaPrecios,
-              Talles_Disponibles: p.talles.join(", ") || "Único",
-              ID_Referencia: p.id_ref,
+              Producto: item.Producto,
+              Estilo: item.Estilo,
+              VALOR_REAL_UNITARIO_LLEVANDO_50: item.p50,
+              VALOR_REAL_UNITARIO_LLEVANDO_100: item.p100 || "No aplica",
+              Inventario: detallesColor,
+              ID_Referencia: item.id_ref,
             };
           });
 
-        return JSON.stringify(result);
+        return JSON.stringify({
+          tipo_resultado: "PRODUCTOS",
+          ADVERTENCIA_SISTEMA:
+            "USA LOS VALORES NUMÉRICOS EXACTOS DE ESTE JSON. IGNORA TU CONOCIMIENTO PREVIO SOBRE PRECIOS DE ROPA.",
+          datos: result,
+        });
 
       case "createCart":
         console.log("🛒 Procesando compra...");
@@ -123,6 +144,6 @@ export const runTool = async (name: string, args: any) => {
     }
   } catch (error) {
     console.error("Error:", error);
-    return "Error técnico.";
+    return JSON.stringify({ error: "Error técnico." });
   }
 };

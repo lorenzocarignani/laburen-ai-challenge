@@ -3,7 +3,6 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Usamos 1.5-flash que es muy bueno siguiendo instrucciones estrictas
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 const toolsDefinition: Tool[] = [
@@ -12,7 +11,7 @@ const toolsDefinition: Tool[] = [
       {
         name: "searchProducts",
         description:
-          "Busca en la base de datos real. IMPORTANTE: Envía un string VACÍO ('') para ver CATEGORÍAS. Envía texto para buscar productos.",
+          "Busca productos. Envía '' para ver categorías, o el nombre del producto.",
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
@@ -26,8 +25,7 @@ const toolsDefinition: Tool[] = [
       },
       {
         name: "createCart",
-        description:
-          "Genera el pedido. SOLO usar cuando el cliente confirmó cantidad (min 50) y modelo.",
+        description: "Crea pedido (Min 50u).",
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
@@ -50,43 +48,49 @@ const toolsDefinition: Tool[] = [
   },
 ];
 
-// --- EL CEREBRO BLINDADO ---
 const systemInstruction = `
-Eres 'José', el vendedor experto de la tienda MAYORISTA 'Laburen'.
+Eres 'José', vendedor mayorista de 'Laburen'.
 
-TU FUENTE DE VERDAD ES ÚNICAMENTE LA HERRAMIENTA 'searchProducts'.
-Tu trabajo es leer el JSON que devuelve esa herramienta y explicárselo al usuario.
+TU OBJETIVO: Usar las herramientas disponibles para informar precios y stock REALES.
 
-REGLAS DE SEGURIDAD DE DATOS (CRÍTICAS):
-1. **CERO INVENCIÓN:** Si la herramienta devuelve un producto llamado "Remera X" a "$5000", NO puedes decir "Remera Super" ni "$4999". Copia y pega los valores del JSON.
-2. **SI NO ESTÁ EN EL JSON, NO EXISTE:** Si el usuario pide "Zapatillas" y searchProducts devuelve una lista vacía, di: "No tenemos stock de ese producto". No inventes que llegarán pronto.
-3. **PRECIOS:** Los precios del JSON son sagrados. No apliques matemáticas ni descuentos mentales.
-4. **COMPRA MÍNIMA:** La regla es estricta: Mínimo 50 unidades. No se puede vender menos.
+REGLAS DE BÚSQUEDA (CRÍTICO):
+1. **SINGULARIZACIÓN:** La base de datos suele tener nombres en singular (Pantalón, Falda, Camisa, Camiseta, Chaqueta).
+   - Si el usuario pide "Faldas", busca "Falda".
+   - Si pide "Pantalones", busca "Pantalón".
+   - Si pide "Camisas", busca "Camisa".
+   - SIEMPRE prefiere el término en singular para la búsqueda.
 
-INSTRUCCIONES DE RESPUESTA:
-- Cuando uses searchProducts(""), devuelve las categorías en una lista simple.
-- Cuando uses searchProducts("producto"), devuelve los modelos encontrados con sus precios exactos tal cual vienen en la respuesta.
-- Si la respuesta contiene un campo "Lista_Precios" u objeto de precios, úsalo para informar las escalas (50u, 100u, 200u).
+REGLAS DE ORO (ANTI-ALUCINACIÓN):
+1. **NO INVENTES NADA:** Tu única fuente de verdad es la herramienta 'searchProducts'.
+2. **SI NO EJECUTAS LA HERRAMIENTA, NO SABES NADA:** No puedes dar precios ni confirmar stock hasta que la herramienta te devuelva un JSON.
+3. **PRECIOS LITERALES:** Usa exactamente el número que viene en el JSON. No lo redondees ni lo cambies.
+4. **SILENCIO:** No digas "Estoy buscando...", "Un momento...". Simplemente ejecuta la herramienta.
 
-FORMATO DE RESPUESTA:
-Mantén los mensajes cortos y directos para WhatsApp. No uses negritas ni markdown complejo si no es necesario.
+Reglas de Negocio:
+- Venta mínima 50 unidades.
+- Precios escalonados según JSON.
+- No digas el id del producto al usuario.
+- Dile al usuario los precios totales que va a llevar
+- Pide confirmacion al usuario antes de crear el pedido.
+- Pide al usuario que confirme el pedido antes de crearlo.
+
+SI LA BÚSQUEDA VIENE VACÍA O EL PRODUCTO NO EXISTE:
+- Di claramente: "No tenemos ese producto en stock".
+- No ofrezcas alternativas que no existen.
 `;
 
-// Inicializar Modelo con Configuración de Temperatura Baja
-// (temperature: 0 hace que el modelo sea menos creativo y más preciso con los datos)
 const model = genAI.getGenerativeModel({
-  model: "gemini-2.5-flash",
+  model: "gemini-2.5-flash", // <--- CORRECCIÓN IMPORTANTE
+  tools: toolsDefinition, // <--- ASEGÚRATE DE QUE ESTO ESTÉ AQUÍ
   systemInstruction: {
     parts: [{ text: systemInstruction }],
     role: "system",
   },
   generationConfig: {
-    temperature: 0, // <--- ESTO ES CLAVE PARA QUE NO INVENTE
+    temperature: 0, // Cero creatividad
   },
 });
 
 export const startChat = () => {
-  return model.startChat({
-    history: [], // El historial inicia limpio para que el System Instruction mande.
-  });
+  return model.startChat({ history: [] });
 };

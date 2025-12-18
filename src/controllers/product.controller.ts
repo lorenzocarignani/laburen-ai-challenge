@@ -49,3 +49,23 @@ export const getProductById = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Error al buscar el producto" });
   }
 };
+
+export const getNames = async (req: Request, res: Response) => {
+  try {
+    const names = await prisma.product.groupBy({
+      by: ["name"],
+      where: {
+        available: true,
+        stock: { gte: 50 },
+        name: { not: "" },
+      },
+      _count: { name: true },
+      orderBy: { name: "asc" },
+    });
+
+    res.json(names);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error interno al obtener categorías" });
+  }
+};
